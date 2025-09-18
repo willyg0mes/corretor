@@ -169,6 +169,14 @@ class PropertyController extends Controller
             abort(403, 'Acesso negado. Apenas corretores podem criar imóveis.');
         }
 
+        // Filtrar arquivos de vídeo vazios ou inválidos antes da validação
+        if ($request->hasFile('videos')) {
+            $validVideos = array_filter($request->file('videos'), function($video) {
+                return $video && $video->isValid() && $video->getSize() > 0;
+            });
+            $request->files->set('videos', $validVideos);
+        }
+
         try {
                 $validated = $request->validate([
                     'title' => 'required|string|max:255',
@@ -184,7 +192,7 @@ class PropertyController extends Controller
                     'bedrooms' => 'nullable|integer|min:0',
                     'bathrooms' => 'nullable|integer|min:0',
                     'parking_spaces' => 'nullable|integer|min:0',
-                    'area' => 'required|integer|min:1',
+                    'area' => 'nullable|integer|min:1',
                     'land_area' => 'nullable|integer|min:0',
                     'features' => 'nullable|array',
                     'features.*' => 'string',
@@ -195,7 +203,7 @@ class PropertyController extends Controller
                     'images' => 'required|array|min:1|max:10',
                     'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:25600', // 25MB por imagem
                     'videos' => 'nullable|array|max:3',
-                    'videos.*' => 'mimes:mp4,mov,avi|max:307200', // 300MB por vídeo
+                    'videos.*' => 'nullable|mimes:mp4,mov,avi|max:307200', // 300MB por vídeo
                 ]);
 
             \Log::info('PropertyController@store - Validação passou', [

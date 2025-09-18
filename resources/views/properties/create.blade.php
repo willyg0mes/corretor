@@ -90,7 +90,7 @@
 
                     <!-- Área -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Área (m²) *</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Área (m²)</label>
                         <input type="number" name="area" value="{{ old('area') }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 @error('area') border-red-500 @enderror"
                                placeholder="Ex: 85">
@@ -484,12 +484,15 @@ function validateFileSizes() {
 
     // Validar vídeos
     if (videoInput.files.length > 0) {
-        if (videoInput.files.length > 3) {
+        // Filtrar arquivos vazios
+        const validVideoFiles = Array.from(videoInput.files).filter(file => file.size > 0);
+
+        if (validVideoFiles.length > 3) {
             alert('Máximo de 3 vídeos permitido.');
             hasErrors = true;
         }
 
-        Array.from(videoInput.files).forEach(file => {
+        validVideoFiles.forEach(file => {
             totalSize += file.size;
             if (file.size > 300 * 1024 * 1024) { // 300MB
                 alert(`Vídeo "${file.name}" é muito grande. Máximo 300MB por vídeo.`);
@@ -550,7 +553,8 @@ document.querySelector('input[name="videos[]"]').addEventListener('change', func
         return;
     }
 
-    Array.from(e.target.files).forEach((file, index) => {
+    // Filtrar apenas arquivos válidos (não vazios)
+    Array.from(e.target.files).filter(file => file.size > 0).forEach((file, index) => {
         if (file.type.startsWith('video/')) {
             const div = document.createElement('div');
             div.className = 'flex items-center space-x-3 p-3 bg-gray-50 rounded-lg';
