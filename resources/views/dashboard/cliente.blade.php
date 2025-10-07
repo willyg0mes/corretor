@@ -135,7 +135,7 @@
                                         {{ $favorite->property->title }}
                                     </p>
                                     <p class="text-sm text-gray-500">
-                                        R$ {{ number_format($favorite->property->price, 0, ',', '.') }}
+                                        R$ {{ number_format($favorite->property->numeric_price, 0, ',', '.') }}
                                     </p>
                                     <p class="text-xs text-gray-400">
                                         {{ $favorite->property->city }} - {{ $favorite->property->state }}

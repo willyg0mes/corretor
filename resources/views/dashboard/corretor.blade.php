@@ -159,7 +159,7 @@
                                         {{ $property->title }}
                                     </p>
                                     <p class="text-sm text-gray-500">
-                                        R$ {{ number_format($property->price, 0, ',', '.') }}
+                                        R$ {{ number_format($property->numeric_price, 0, ',', '.') }}
                                     </p>
                                     <div class="flex items-center space-x-2 mt-1">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium

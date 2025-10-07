@@ -88,13 +88,31 @@
         <!-- Lista de Imóveis -->
         <div class="bg-white rounded-lg shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">{{ $properties->total() }} imóveis encontrados</h3>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">{{ $properties->total() }} imóveis encontrados</h3>
+
+                    <!-- Controles de seleção múltipla -->
+                    <div id="bulkActions" class="hidden flex items-center space-x-3">
+                        <span class="text-sm text-gray-600" id="selectedCount">0 selecionado(s)</span>
+                        <button type="button" onclick="selectAll()" class="text-sm text-blue-600 hover:text-blue-800">Selecionar todos</button>
+                        <button type="button" onclick="clearSelection()" class="text-sm text-gray-600 hover:text-gray-800">Limpar</button>
+                        <button type="button" onclick="bulkDelete()" class="text-sm text-red-600 hover:text-red-800 font-medium">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Excluir selecionados
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imóvel</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Corretor</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
@@ -107,6 +125,9 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($properties as $property)
                         <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="checkbox" name="selected_properties[]" value="{{ $property->id }}" onchange="updateBulkActions()" class="property-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
                                     <div class="flex-shrink-0 h-12 w-12">
@@ -147,7 +168,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                R$ {{ number_format($property->price, 0, ',', '.') }}
+                                R$ {{ number_format($property->numeric_price, 0, ',', '.') }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ $property->views }}
@@ -236,6 +257,103 @@ function changeStatus(propertyId, currentStatus) {
 
 function closeStatusModal() {
     document.getElementById('statusModal').classList.add('hidden');
+}
+
+// Funções para seleção múltipla
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.property-checkbox:checked');
+    const bulkActions = document.getElementById('bulkActions');
+    const selectedCount = document.getElementById('selectedCount');
+
+    if (checkboxes.length > 0) {
+        bulkActions.classList.remove('hidden');
+        selectedCount.textContent = `${checkboxes.length} selecionado(s)`;
+    } else {
+        bulkActions.classList.add('hidden');
+    }
+
+    // Atualizar checkbox "selecionar todos"
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const allCheckboxes = document.querySelectorAll('.property-checkbox');
+    selectAllCheckbox.checked = checkboxes.length === allCheckboxes.length && allCheckboxes.length > 0;
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const checkboxes = document.querySelectorAll('.property-checkbox');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+
+    updateBulkActions();
+}
+
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.property-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateBulkActions();
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.property-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateBulkActions();
+}
+
+async function bulkDelete() {
+    const checkboxes = document.querySelectorAll('.property-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        await showConfirmation('Selecione pelo menos um imóvel para excluir.', 'Atenção');
+        return;
+    }
+
+    const count = checkboxes.length;
+    const message = `Tem certeza que deseja excluir ${count} imóvel(is)? Esta ação não pode ser desfeita.`;
+
+    const confirmed = await showConfirmation(message, 'Excluir Imóveis');
+    if (confirmed) {
+        const ids = Array.from(checkboxes).map(cb => cb.value);
+
+        // Criar form para submissão
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/admin/imoveis/bulk-delete';
+
+        // CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = '_token';
+            csrfInput.value = csrfToken.getAttribute('content');
+            form.appendChild(csrfInput);
+        }
+
+        // Método DELETE spoofing
+        const methodInput = document.createElement('input');
+        methodInput.type = 'hidden';
+        methodInput.name = '_method';
+        methodInput.value = 'DELETE';
+        form.appendChild(methodInput);
+
+        // IDs dos imóveis
+        ids.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'property_ids[]';
+            input.value = id;
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 </script>
 @endsection

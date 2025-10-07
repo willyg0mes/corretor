@@ -403,6 +403,24 @@
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ $property->title }}</h1>
+
+                            <!-- Status do imóvel (vendido/alugado) -->
+                            @if($property->status === 'vendido' || $property->status === 'alugado')
+                            <div class="mb-3">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                                    {{ $property->status === 'vendido' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800' }}">
+                                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                        @if($property->status === 'vendido')
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        @else
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                        @endif
+                                    </svg>
+                                    Imóvel {{ $property->status === 'vendido' ? 'Vendido' : 'Alugado' }}
+                                </span>
+                            </div>
+                            @endif
+
                             <p class="text-gray-600 flex items-center">
                                 <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
@@ -413,7 +431,7 @@
                         </div>
                         <div class="text-right">
                             <p class="text-3xl font-bold text-primary-600">
-                                R$ {{ number_format($property->price, 0, ',', '.') }}
+                                R$ {{ number_format($property->numeric_price, 0, ',', '.') }}
                                 @if($property->type === 'aluguel')
                                 <span class="text-sm font-normal text-gray-500">/mês</span>
                                 @endif
@@ -519,10 +537,37 @@
 
                     <!-- Ações -->
                     <div class="space-y-3">
+                        @can('update', $property)
+                        <!-- Botões de Administração -->
+                        <div class="flex space-x-2 mb-3">
+                            <a href="{{ route('properties.edit', $property) }}"
+                               class="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition duration-200 font-medium text-center text-sm">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                                Editar
+                            </a>
+                            <form method="POST" action="{{ route('properties.destroy', $property) }}"
+                                  onsubmit="return handleDeleteProperty(event)"
+                                  class="inline">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                        class="flex-1 bg-red-600 text-white py-2 px-3 rounded-lg hover:bg-red-700 transition duration-200 font-medium text-sm">
+                                    <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                    Excluir
+                                </button>
+                            </form>
+                        </div>
+                        @endcan
+
                         <!-- Contatar via WhatsApp -->
+                        @if($property->status !== 'vendido' && $property->status !== 'alugado')
                         @php
                             $whatsappNumber = preg_replace('/[^0-9]/', '', $corretorPrincipal->phone ?? '+55629460321');
-                            $whatsappMessage = urlencode("Olá {$corretorPrincipal->name}! Tenho interesse no imóvel: {$property->title} - {$property->address}, {$property->city}. Valor: R$ " . number_format($property->price, 0, ',', '.'));
+                            $whatsappMessage = urlencode("Olá {$corretorPrincipal->name}! Tenho interesse no imóvel: {$property->title} - {$property->address}, {$property->city}. Valor: R$ " . number_format($property->numeric_price, 0, ',', '.'));
                             $whatsappUrl = "https://wa.me/{$whatsappNumber}?text={$whatsappMessage}";
                         @endphp
                         <a href="{{ $whatsappUrl }}" target="_blank"
@@ -532,6 +577,14 @@
                             </svg>
                             Contatar via WhatsApp
                         </a>
+                        @else
+                        <div class="w-full bg-gray-100 text-gray-500 py-3 px-4 rounded-lg font-medium text-center block">
+                            <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                            Imóvel Indisponível
+                        </div>
+                        @endif
 
                         {{-- Agendar Visita - Desabilitado temporariamente --}}
                         {{-- <a href="{{ route('visits.create', $property) }}"
@@ -539,6 +592,7 @@
                             Agendar Visita
                         </a> --}}
 
+                        @if($property->status !== 'vendido' && $property->status !== 'alugado')
                         <!-- Favoritar -->
                         <button onclick="toggleFavorite({{ $property->id }})"
                                 id="favorite-btn-{{ $property->id }}"
@@ -555,6 +609,7 @@
                                 @endauth
                             </span>
                         </button>
+                        @endif
 
                         <!-- Compartilhar -->
                         <button onclick="shareProperty()"
@@ -625,7 +680,7 @@
                         </h4>
 
                         <p class="text-lg font-bold text-primary-600 mb-2">
-                            R$ {{ number_format($similarProperty->price, 0, ',', '.') }}
+                            R$ {{ number_format($similarProperty->numeric_price, 0, ',', '.') }}
                             @if($similarProperty->type === 'aluguel')
                             <span class="text-sm font-normal text-gray-500">/mês</span>
                             @endif
@@ -891,5 +946,22 @@ function shareProperty() {
     }
 }
 
+</script>
+
+<script>
+async function handleDeleteProperty(event) {
+    event.preventDefault();
+
+    const confirmed = await showConfirmation(
+        'Tem certeza que deseja excluir este imóvel? Esta ação não pode ser desfeita.',
+        'Excluir Imóvel'
+    );
+
+    if (confirmed) {
+        event.target.submit();
+    }
+
+    return false;
+}
 </script>
 @endsection
