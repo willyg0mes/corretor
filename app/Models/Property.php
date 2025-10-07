@@ -50,7 +50,7 @@ class Property extends Model
     ];
 
     protected $casts = [
-        'price' => 'decimal:2',
+        // 'price' => 'decimal:2', // Removido para evitar erro de cast
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'bedrooms' => 'integer',
@@ -206,29 +206,112 @@ class Property extends Model
     // Accessors
     public function getFormattedPriceAttribute(): string
     {
-        return 'R$ ' . number_format($this->price, 2, ',', '.');
+        $price = $this->price;
+
+        // Se o preço for null ou vazio, retorna valor padrão
+        if (empty($price)) {
+            return 'R$ 0,00';
+        }
+
+        // Se o preço não for numérico, tenta converter
+        if (!is_numeric($price)) {
+            // Remove caracteres especiais
+            $price = trim($price);
+            $price = str_replace(['R$ ', 'R$', '.', ','], ['', '', '', '.'], $price);
+            $price = preg_replace('/\s+/', '', $price);
+            $price = str_replace("\xc2\xa0", '', $price); // Remove espaço não-quebrável UTF-8
+            
+            // Se ainda não for numérico após limpeza, retorna erro
+            if (!is_numeric($price)) {
+                \Log::warning('Property price conversion failed', [
+                    'property_id' => $this->id,
+                    'original_price' => $this->price,
+                    'cleaned_price' => $price
+                ]);
+                return 'R$ 0,00';
+            }
+        }
+
+        // Garante que seja float e formata
+        $numericPrice = (float) $price;
+        return 'R$ ' . number_format($numericPrice, 2, ',', '.');
+    }
+
+    /**
+     * Get the price as a numeric value (float)
+     */
+    public function getNumericPriceAttribute(): float
+    {
+        $price = $this->price;
+
+        if (empty($price)) {
+            return 0.0;
+        }
+
+        if (is_numeric($price)) {
+            return (float) $price;
+        }
+
+        // Tenta limpar e converter
+        $price = trim($price);
+        $price = str_replace(['R$ ', 'R$', '.', ','], ['', '', '', '.'], $price);
+        $price = preg_replace('/\s+/', '', $price);
+        $price = str_replace("\xc2\xa0", '', $price);
+        
+        return is_numeric($price) ? (float) $price : 0.0;
     }
 
     public function getMainImageAttribute()
     {
-        return $this->images()->where('is_featured', true)->first()
-            ?? $this->images()->first();
+        // Primeiro tenta encontrar imagem destacada
+        $image = $this->images()->where('is_featured', true)->first();
+        if ($image) {
+            return $image;
+        }
+
+        // Depois qualquer imagem
+        $image = $this->images()->first();
+        if ($image) {
+            return $image;
+        }
+
+        // Se não há imagens, retorna vídeo destacado como "imagem"
+        $video = $this->videos()->where('is_featured', true)->first();
+        if ($video) {
+            return $video;
+        }
+
+        // Ou qualquer vídeo
+        return $this->videos()->first();
     }
 
     public function getMainImageUrlAttribute(): string
     {
-        $image = $this->main_image;
+        $media = $this->main_image;
 
-        if (!$image) {
+        if (!$media) {
             return asset('images/default-property.jpg');
         }
 
-        // Se for imagem externa (usada no seeder), retornar diretamente
-        if ($image->disk === 'external') {
-            return $image->path;
+        // Se for PropertyImage
+        if ($media instanceof PropertyImage) {
+            // Se for imagem externa (usada no seeder), retornar diretamente
+            if ($media->disk === 'external') {
+                return $media->path;
+            }
+            return asset('storage/' . $media->path);
         }
 
-        return asset('storage/' . $image->path);
+        // Se for PropertyVideo, retornar a URL do vídeo diretamente
+        // O navegador mostrará automaticamente o primeiro frame quando preload="metadata"
+        if ($media instanceof PropertyVideo) {
+            if ($media->disk === 'external') {
+                return $media->path;
+            }
+            return asset('storage/' . $media->path);
+        }
+
+        return asset('images/default-property.jpg');
     }
 
     public function getThumbnailUrlAttribute(): string
