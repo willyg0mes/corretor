@@ -80,9 +80,9 @@
                     <!-- Preço -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Preço (R$) *</label>
-                        <input type="number" name="price" value="{{ old('price') }}" step="0.01"
+                        <input type="text" name="price" value="{{ old('price') ? (is_numeric(old('price')) ? 'R$ ' . number_format((float) old('price'), 2, ',', '.') : old('price')) : '' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 @error('price') border-red-500 @enderror"
-                               placeholder="Ex: 500000.00">
+                               placeholder="Ex: R$ 500.000,00">
                         @error('price')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -337,10 +337,10 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Fotos do Imóvel *</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Fotos do Imóvel</label>
                         <input type="file" name="images[]" multiple accept="image/*"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 @error('images') border-red-500 @enderror">
-                        <p class="mt-1 text-sm text-gray-500">Selecione múltiplas imagens (máximo 10 imagens, cada uma até 25MB)</p>
+                        <p class="mt-1 text-sm text-gray-500">Selecione múltiplas imagens (máximo 20 imagens, cada uma até 25MB)</p>
                         @error('images')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
@@ -458,6 +458,82 @@
 </div>
 
 <script>
+// Formatação de campos conforme digitação
+document.addEventListener('DOMContentLoaded', function() {
+    // Formatação de preço
+    const priceInput = document.querySelector('input[name="price"]');
+    if (priceInput) {
+        // Função para formatar valor
+        function formatPrice(value) {
+            if (!value) return '';
+
+            // Remove tudo que não é dígito
+            let numericValue = value.replace(/\D/g, '');
+
+            if (numericValue) {
+                // Converte para formato decimal
+                let floatValue = parseFloat(numericValue) / 100;
+                let formatted = floatValue.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+                return formatted;
+            }
+            return '';
+        }
+
+        // Formatação durante digitação
+        priceInput.addEventListener('input', function(e) {
+            let cursorPosition = e.target.selectionStart;
+            let value = e.target.value;
+
+            // Se não começa com R$, formata
+            if (!value.startsWith('R$ ')) {
+                let formatted = formatPrice(value);
+                e.target.value = formatted;
+
+                // Tenta manter a posição do cursor
+                setTimeout(() => {
+                    if (formatted && cursorPosition > 0) {
+                        e.target.setSelectionRange(cursorPosition, cursorPosition);
+                    }
+                }, 0);
+            }
+        });
+
+        // Ao focar, permite edição livre
+        priceInput.addEventListener('focus', function(e) {
+            // Não faz nada, deixa o usuário editar normalmente
+        });
+
+        // Ao sair do campo, garante formatação correta
+        priceInput.addEventListener('blur', function(e) {
+            let value = e.target.value;
+            if (value && !value.startsWith('R$ ')) {
+                e.target.value = formatPrice(value);
+            }
+        });
+
+        // Valor inicial
+        if (priceInput.value && !priceInput.value.startsWith('R$ ')) {
+            priceInput.value = formatPrice(priceInput.value);
+        }
+    }
+
+    // Formatação de CEP
+    const zipCodeInput = document.querySelector('input[name="zip_code"]');
+    if (zipCodeInput) {
+        zipCodeInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 5) {
+                e.target.value = value;
+            } else {
+                e.target.value = value.slice(0, 5) + '-' + value.slice(5, 8);
+            }
+        });
+    }
+});
+
 // Validação de tamanho dos arquivos antes do upload
 function validateFileSizes() {
     const imageInput = document.querySelector('input[name="images[]"]');
@@ -468,8 +544,8 @@ function validateFileSizes() {
 
     // Validar imagens
     if (imageInput.files.length > 0) {
-        if (imageInput.files.length > 10) {
-            alert('Máximo de 10 imagens permitido.');
+        if (imageInput.files.length > 20) {
+            alert('Máximo de 20 imagens permitido.');
             hasErrors = true;
         }
 
@@ -584,6 +660,20 @@ document.querySelector('input[name="videos[]"]').addEventListener('change', func
 document.querySelector('form').addEventListener('submit', function(e) {
     console.log('🔄 Formulário sendo submetido');
 
+    // Preparar valores formatados para envio
+    const priceInput = document.querySelector('input[name="price"]');
+    if (priceInput && priceInput.value) {
+        // Converter valor formatado para número puro (remover R$, pontos e converter vírgula para ponto)
+        const cleanPrice = priceInput.value
+            .replace('R$ ', '') // Remove R$
+            .replace(/\./g, '') // Remove pontos (separadores de milhares)
+            .replace(',', '.'); // Converte vírgula para ponto decimal
+        priceInput.value = cleanPrice;
+    }
+
+    // Vídeos usarão o primeiro frame automaticamente (não precisa gerar thumbnails)
+    console.log('📹 Vídeos processados - usarão primeiro frame como thumbnail');
+
     // Validar arquivos antes do envio
     if (!validateFileSizes()) {
         console.log('❌ Validação de arquivos falhou');
@@ -646,5 +736,7 @@ function removeVideo(index) {
     // Recarregar preview
     input.dispatchEvent(new Event('change'));
 }
+
+// Thumbnails de vídeo são geradas automaticamente pelo navegador com <video preload="metadata">
 </script>
 @endsection

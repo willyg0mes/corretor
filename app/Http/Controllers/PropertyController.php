@@ -172,18 +172,75 @@ class PropertyController extends Controller
         // Filtrar arquivos de vídeo vazios ou inválidos antes da validação
         if ($request->hasFile('videos')) {
             $validVideos = array_filter($request->file('videos'), function($video) {
-                return $video && $video->isValid() && $video->getSize() > 0;
+                return $video && $video->isValid() && $video->getSize() > 0 && !empty($video->getClientOriginalName());
             });
-            $request->files->set('videos', $validVideos);
+
+            // Se não há vídeos válidos, remover o campo videos completamente
+            if (empty($validVideos)) {
+                $request->request->remove('videos');
+                $request->files->remove('videos');
+            } else {
+                $request->files->set('videos', array_values($validVideos)); // Reindexar array
+            }
         }
 
         try {
+                // Validação customizada para vídeos (ignorar arquivos vazios)
+                $request->validate([
+                    'videos' => [
+                        'nullable',
+                        'array',
+                        'max:3',
+                        function ($attribute, $value, $fail) use ($request) {
+                            if ($request->hasFile('videos')) {
+                                $validVideos = 0;
+                                foreach ($request->file('videos') as $video) {
+                                    if ($video && $video->isValid() && $video->getSize() > 0) {
+                                        $validVideos++;
+                                        // Validar tipo e tamanho
+                                        if (!in_array($video->getMimeType(), ['video/mp4', 'video/quicktime', 'video/x-msvideo'])) {
+                                            $fail('Vídeo deve ser do tipo MP4, MOV ou AVI.');
+                                            return;
+                                        }
+                                        if ($video->getSize() > 314572800) { // 300MB em bytes
+                                            $fail('Cada vídeo deve ter no máximo 300MB.');
+                                            return;
+                                        }
+                                    }
+                                }
+                                if ($validVideos > 3) {
+                                    $fail('Máximo de 3 vídeos permitido.');
+                                }
+                            }
+                        },
+                    ],
+                ]);
+
                 $validated = $request->validate([
                     'title' => 'required|string|max:255',
                     'description' => 'required|string',
                     'category_id' => 'required|exists:categories,id',
                     'type' => 'required|in:venda,aluguel',
-                    'price' => 'required|numeric|min:0',
+                    'price' => [
+                        'required',
+                        function ($attribute, $value, $fail) {
+                            // Se for uma string formatada (R$ 1.000.000,00), converte para número
+                            if (is_string($value) && str_contains($value, 'R$ ')) {
+                                $numericValue = str_replace(['R$ ', '.', ','], ['', '', '.'], $value);
+                                $numericValue = (float) $numericValue;
+                            } else {
+                                $numericValue = (float) $value;
+                            }
+
+                            if (!is_numeric($numericValue) || $numericValue < 0) {
+                                $fail('O campo preço deve conter um valor numérico válido.');
+                                return;
+                            }
+
+                            // Substitui o valor no request pelo valor numérico
+                            request()->merge(['price' => $numericValue]);
+                        },
+                    ],
                     'address' => 'required|string|max:255',
                     'neighborhood' => 'required|string|max:255',
                     'city' => 'required|string|max:255',
@@ -200,10 +257,8 @@ class PropertyController extends Controller
                     'amenities.*' => 'string',
                     'featured' => 'nullable|boolean',
                     'urgent' => 'nullable|boolean',
-                    'images' => 'required|array|min:1|max:10',
+                    'images' => 'nullable|array|max:20',
                     'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:25600', // 25MB por imagem
-                    'videos' => 'nullable|array|max:3',
-                    'videos.*' => 'nullable|mimes:mp4,mov,avi|max:307200', // 300MB por vídeo
                 ]);
 
             \Log::info('PropertyController@store - Validação passou', [
